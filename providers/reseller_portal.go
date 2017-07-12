@@ -23,21 +23,21 @@ func NewResellerPortalProvider(p *ProviderData) *ResellerPortalProvider {
 	if p.LoginURL.String() == "" {
 		p.LoginURL = &url.URL{
             Scheme: "https",
-			Host: "devmy.securepoint.de",
+			Host: "my.securepoint.de",
 			Path: "/oauth2/authorize",
 		}
 	}
 	if p.RedeemURL.String() == "" {
 		p.RedeemURL = &url.URL{
             Scheme: "https",
-			Host: "devmy.securepoint.de",
+			Host: "my.securepoint.de",
 			Path: "/oauth2/access_token",
 		}
 	}
 	if p.ProfileURL.String() == "" {
 		p.ProfileURL = &url.URL{
             Scheme: "https",
-			Host: "devmy.securepoint.de",
+			Host: "my.securepoint.de",
 			Path: "/api/user",
 		}
 	}
