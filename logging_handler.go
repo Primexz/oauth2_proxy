@@ -115,7 +115,10 @@ func buildLogLine(username, upstream string, req *http.Request, url url.URL, ts 
 		}
 	}
 
-	client := req.Header.Get("X-Real-IP")
+	client := req.Header.Get("X-Forwarded-For")
+	if client == "" {
+		client = req.Header.Get("X-Real-IP")
+	}
 	if client == "" {
 		client = req.RemoteAddr
 	}

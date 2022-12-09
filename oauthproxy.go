@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bitly/oauth2_proxy/cookie"
-	"github.com/bitly/oauth2_proxy/providers"
+	"github.com/Securepoint/oauth2_proxy/cookie"
+	"github.com/Securepoint/oauth2_proxy/providers"
 	"github.com/mbland/hmacauth"
 )
 
@@ -446,7 +446,9 @@ func (p *OAuthProxy) IsWhitelistedPath(path string) (ok bool) {
 
 func getRemoteAddr(req *http.Request) (s string) {
 	s = req.RemoteAddr
-	if req.Header.Get("X-Real-IP") != "" {
+	if req.Header.Get("X-Forwarded-For") != "" {
+		s += fmt.Sprintf(" (%q)", req.Header.Get("X-Forwarded-For"))
+	} else if req.Header.Get("X-Real-IP") != "" {
 		s += fmt.Sprintf(" (%q)", req.Header.Get("X-Real-IP"))
 	}
 	return
@@ -604,6 +606,7 @@ func (p *OAuthProxy) Proxy(rw http.ResponseWriter, req *http.Request) {
 }
 
 func (p *OAuthProxy) Authenticate(rw http.ResponseWriter, req *http.Request) int {
+
 	var saveSession, clearSession, revalidated bool
 	remoteAddr := getRemoteAddr(req)
 
@@ -625,7 +628,7 @@ func (p *OAuthProxy) Authenticate(rw http.ResponseWriter, req *http.Request) int
 		revalidated = true
 	}
 
-	if session != nil && session.IsExpired() {
+	if session != nil && session.IsExpired() && !revalidated {
 		log.Printf("%s removing session. token expired %s", remoteAddr, session)
 		session = nil
 		saveSession = false

@@ -3,42 +3,46 @@ package providers
 import (
 	"bytes"
 	"encoding/json"
-	"log"
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 
-	"github.com/bitly/oauth2_proxy/api"
+	"github.com/Securepoint/oauth2_proxy/api"
+	"github.com/patrickmn/go-cache"
 )
 
 type ResellerPortalProvider struct {
 	*ProviderData
+	*cache.Cache
+	sync.Mutex
 }
 
 func NewResellerPortalProvider(p *ProviderData) *ResellerPortalProvider {
 	p.ProviderName = "Reseller Portal"
 	if p.LoginURL.String() == "" {
 		p.LoginURL = &url.URL{
-            Scheme: "https",
-			Host: "my.securepoint.de",
-			Path: "/oauth2/authorize",
+			Scheme: "https",
+			Host:   "my.securepoint.de",
+			Path:   "/oauth2/authorize",
 		}
 	}
 	if p.RedeemURL.String() == "" {
 		p.RedeemURL = &url.URL{
-            Scheme: "https",
-			Host: "my.securepoint.de",
-			Path: "/oauth2/access_token",
+			Scheme: "https",
+			Host:   "my.securepoint.de",
+			Path:   "/oauth2/access_token",
 		}
 	}
 	if p.ProfileURL.String() == "" {
 		p.ProfileURL = &url.URL{
-            Scheme: "https",
-			Host: "my.securepoint.de",
-			Path: "/api/user",
+			Scheme: "https",
+			Host:   "my.securepoint.de",
+			Path:   "/api/user",
 		}
 	}
 	if p.ValidateURL.String() == "" {
@@ -47,7 +51,11 @@ func NewResellerPortalProvider(p *ProviderData) *ResellerPortalProvider {
 	if p.Scope == "" {
 		p.Scope = "basic"
 	}
-	return &ResellerPortalProvider{ProviderData: p}
+
+	return &ResellerPortalProvider{
+		ProviderData: p,
+		Cache:        cache.New(1*time.Minute, 10*time.Minute),
+	}
 }
 
 func getResellerPortalHeader(access_token string) http.Header {
@@ -129,41 +137,57 @@ func (p *ResellerPortalProvider) Redeem(redirectURL, code string) (s *SessionSta
 	}
 
 	var jsonResponse struct {
-		AccessToken string `json:"access_token"`
+		AccessToken  string `json:"access_token"`
 		ExpiresIn    int64  `json:"expires_in"`
 		RefreshToken string `json:"refresh_token"`
 	}
 	err = json.Unmarshal(body, &jsonResponse)
 	if err == nil {
 		s = &SessionState{
-			AccessToken:    jsonResponse.AccessToken,
-		    ExpiresOn:      time.Now().Add(time.Duration(jsonResponse.ExpiresIn) * time.Second).Truncate(time.Second),
-		    RefreshToken:   jsonResponse.RefreshToken,
+			AccessToken:  jsonResponse.AccessToken,
+			ExpiresOn:    time.Now().Add(time.Duration(jsonResponse.ExpiresIn) * time.Second).Truncate(time.Second),
+			RefreshToken: jsonResponse.RefreshToken,
 		}
 		return
 	}
 
-    err = fmt.Errorf("no access token found %s", body)
+	err = fmt.Errorf("no access token found %s", body)
 	return
 }
 
 func (p *ResellerPortalProvider) RefreshSessionIfNeeded(s *SessionState) (bool, error) {
-    if s == nil || s.ExpiresOn.After(time.Now()) || s.RefreshToken == "" {
+	if s == nil || s.ExpiresOn.After(time.Now()) || s.RefreshToken == "" {
 		return false, nil
 	}
 
-	origExpiration := s.ExpiresOn
+	oldAccessToken := s.AccessToken
+	oldExpiresOn := s.ExpiresOn
+	AccessToken, found := p.Cache.Get(oldAccessToken)
 
-    err := p.redeemRefreshToken(s)
+	if found {
+		s.AccessToken = AccessToken.(string)
+		log.Printf("refresh access token by previous request %s (expired on %s)", s, oldExpiresOn)
+		return false, nil
+	}
+
+	err := p.redeemRefreshToken(s)
 	if err != nil {
+		p.Cache.Delete(oldAccessToken)
 		return false, err
 	}
 
-	log.Printf("refreshed access token %s (expired on %s)", s, origExpiration)
+	log.Printf("refreshed access token %s (expired on %s)", s, oldExpiresOn)
+	p.Cache.Set(oldAccessToken, s.AccessToken, cache.DefaultExpiration)
+
 	return true, nil
 }
 
 func (p *ResellerPortalProvider) redeemRefreshToken(s *SessionState) (err error) {
+
+	p.Lock()
+	defer p.Unlock()
+
+	//log.Printf("old refresh_token %s", s.RefreshToken)
 
 	params := url.Values{}
 	params.Add("client_id", p.ClientID)
@@ -189,22 +213,23 @@ func (p *ResellerPortalProvider) redeemRefreshToken(s *SessionState) (err error)
 	}
 
 	if resp.StatusCode != 200 {
-		err = fmt.Errorf("\n\ngot %d from %q %s\n\n", resp.StatusCode, p.RedeemURL.String(), body)
+		err = fmt.Errorf("\n\ngot %d with %s from %q %s\n\n", resp.StatusCode, params.Encode(), p.RedeemURL.String(), body)
 		return
 	}
 
 	var jsonResponse struct {
-		AccessToken string `json:"access_token"`
-		ExpiresIn   int64  `json:"expires_in"`
+		AccessToken  string `json:"access_token"`
+		ExpiresIn    int64  `json:"expires_in"`
 		RefreshToken string `json:"refresh_token"`
 	}
 
-    err = json.Unmarshal(body, &jsonResponse)
+	err = json.Unmarshal(body, &jsonResponse)
+
 	if err == nil {
+		//log.Printf("new refresh_token %s", jsonResponse.RefreshToken)
 		s.AccessToken = jsonResponse.AccessToken
 		s.ExpiresOn = time.Now().Add(time.Duration(jsonResponse.ExpiresIn) * time.Second).Truncate(time.Second)
 		s.RefreshToken = jsonResponse.RefreshToken
-		return
 	}
 	return
 }

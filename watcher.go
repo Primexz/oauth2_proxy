@@ -1,3 +1,4 @@
+//go:build go1.3 && !plan9 && !solaris
 // +build go1.3,!plan9,!solaris
 
 package main
@@ -8,7 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"gopkg.in/fsnotify.v1"
+	"github.com/fsnotify/fsnotify"
 )
 
 func WaitForReplacement(filename string, op fsnotify.Op,
