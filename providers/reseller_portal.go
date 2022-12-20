@@ -156,12 +156,16 @@ func (p *ResellerPortalProvider) Redeem(redirectURL, code string) (s *SessionSta
 }
 
 func (p *ResellerPortalProvider) RefreshSessionIfNeeded(s *SessionState) (bool, error) {
+
+	p.Lock()
+	defer p.Unlock()
+
 	if s == nil || s.ExpiresOn.After(time.Now()) || s.RefreshToken == "" {
 		return false, nil
 	}
 
-	oldAccessToken := s.AccessToken
 	oldExpiresOn := s.ExpiresOn
+	oldAccessToken := s.AccessToken
 	AccessToken, found := p.Cache.Get(oldAccessToken)
 
 	if found {
@@ -183,9 +187,6 @@ func (p *ResellerPortalProvider) RefreshSessionIfNeeded(s *SessionState) (bool, 
 }
 
 func (p *ResellerPortalProvider) redeemRefreshToken(s *SessionState) (err error) {
-
-	p.Lock()
-	defer p.Unlock()
 
 	//log.Printf("old refresh_token %s", s.RefreshToken)
 
