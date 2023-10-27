@@ -50,6 +50,8 @@ type Options struct {
 	CookieSecure   bool          `flag:"cookie-secure" cfg:"cookie_secure"`
 	CookieHttpOnly bool          `flag:"cookie-httponly" cfg:"cookie_httponly"`
 
+	AllowedRedirects []string `flag:"allowed-redirects" cfg:"allowed_redirects"`
+
 	Upstreams             []string `flag:"upstream" cfg:"upstreams"`
 	SkipAuthRegex         []string `flag:"skip-auth-regex" cfg:"skip_auth_regex"`
 	PassBasicAuth         bool     `flag:"pass-basic-auth" cfg:"pass_basic_auth"`
@@ -141,6 +143,9 @@ func (o *Options) Validate() error {
 	}
 	if o.ClientSecret == "" {
 		msgs = append(msgs, "missing setting: client-secret")
+	}
+	if len(o.AllowedRedirects) == 0 {
+		msgs = append(msgs, "missing setting: allowed-redirects")
 	}
 	if o.AuthenticatedEmailsFile == "" && len(o.EmailDomains) == 0 && o.HtpasswdFile == "" {
 		msgs = append(msgs, "missing setting for email validation: email-domain or authenticated-emails-file required."+

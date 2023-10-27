@@ -78,6 +78,7 @@ type OAuthProxy struct {
 	compiledRegex       []*regexp.Regexp
 	templates           *template.Template
 	Footer              string
+	AllowedRedirects    []string
 }
 
 type UpstreamProxy struct {
@@ -216,6 +217,7 @@ func NewOAuthProxy(opts *Options, validator func(string) bool) *OAuthProxy {
 		CookieCipher:       cipher,
 		templates:          loadTemplates(opts.CustomTemplatesDir),
 		Footer:             opts.Footer,
+		AllowedRedirects:   opts.AllowedRedirects,
 	}
 }
 
@@ -421,6 +423,18 @@ func (p *OAuthProxy) ManualSignIn(rw http.ResponseWriter, req *http.Request) (st
 	return "", false
 }
 
+func (p *OAuthProxy) isValidRedirect(redirect string) bool {
+	isValidRedirect := false
+	for _, val := range p.AllowedRedirects {
+		if val == redirect {
+			isValidRedirect = true
+			break
+		}
+	}
+
+	return isValidRedirect
+}
+
 func (p *OAuthProxy) GetRedirect(req *http.Request) (redirect string, err error) {
 	err = req.ParseForm()
 	if err != nil {
@@ -428,7 +442,8 @@ func (p *OAuthProxy) GetRedirect(req *http.Request) (redirect string, err error)
 	}
 
 	redirect = req.Form.Get("rd")
-	if redirect == "" || !strings.HasPrefix(redirect, "/") || strings.HasPrefix(redirect, "//") || invalidRedirectRegex.MatchString(redirect) {
+	decodedRedirect, err := url.QueryUnescape(redirect)
+	if err != nil || !p.isValidRedirect(decodedRedirect) {
 		redirect = "/"
 	}
 
