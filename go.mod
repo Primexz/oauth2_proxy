@@ -26,8 +26,8 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/pquerna/cachecontrol v0.0.0-20171018203845-0dec1b30a021 // indirect
 	github.com/rogpeppe/go-internal v1.9.0 // indirect
-	golang.org/x/crypto v0.0.0-20171113213409-9f005a07e0d3 // indirect
-	golang.org/x/net v0.0.0-20171115151908-9dfe39835686 // indirect
+	golang.org/x/crypto v0.1.0 // indirect
+	golang.org/x/net v0.1.0 // indirect
 	golang.org/x/sync v0.4.0 // indirect
 	golang.org/x/sys v0.4.0 // indirect
 	google.golang.org/appengine v1.0.0 // indirect
