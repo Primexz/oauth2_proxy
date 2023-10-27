@@ -1,3 +1,3 @@
 package main
 
-const VERSION = "2.2.3-securepoint"
+const VERSION = "3.0.0-securepoint"
